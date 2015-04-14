@@ -1,0 +1,9 @@
+[submodule "SoftOffload-Master"]
+	path = SoftOffload-Master
+	url = https://github.com/TKTL-SDN/SoftOffload-Master.git
+[submodule "SoftOffload-Agent"]
+	path = SoftOffload-Agent
+	url = https://github.com/TKTL-SDN/SoftOffload-Agent.git
+[submodule "SoftOffload-Client"]
+	path = SoftOffload-Client
+	url = https://github.com/TKTL-SDN/SoftOffload-Client.git
