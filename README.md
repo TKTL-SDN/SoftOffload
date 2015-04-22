@@ -10,6 +10,11 @@ SoftOffload is an SDN-based mobile traffic offloading framework. It runs on a cu
 
 * For the **system**: OpenFlow-supported switches.
 
+## Deployment
+
+<img src="img/structure.png", alt="structure" title="structure
+" width="600" />
+
 ## Usage
 
 Building SoftOffload implies building the SoftOffload master, agents, and clients respectively.
