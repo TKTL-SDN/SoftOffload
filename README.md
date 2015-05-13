@@ -129,3 +129,6 @@ A more detailed instruction can be found [here](https://github.com/TKTL-SDN/Soft
 **Now connect clients to local agents, and the controller will trigger offloading based on system traffic loads**
 
 ## References
+
+Yanhe Liu. [An SDN Platform for Traffic Offloading](https://helda.helsinki.fi/handle/10138/154632). Master's thesis. Univeristy of Helsinki, 2015.
+
