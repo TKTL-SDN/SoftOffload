@@ -2,6 +2,8 @@
 
 SoftOffload is an SDN-based mobile traffic offloading framework. It runs on a custom [Floodlight controller](https://github.com/TKTL-SDN/SoftOffload-Master) with our extensions on [Click modular routers](https://github.com/TKTL-SDN/SoftOffload-Agent) and [mobile devices](https://github.com/TKTL-SDN/SoftOffload-Client). It not only explores the feasibility of context-based traffic offloading, but also provides a platform for designing and implementing a centralized traffic management in wireless networks.
 
+SoftOffload project homepage: [http://www.cs.helsinki.fi/group/eit-sdn/softoffload.html](http://www.cs.helsinki.fi/group/eit-sdn/softoffload.html)
+
 ## Requirements
 
 * For the **agent/AP**: a monitor device/interface on the wireless channel is required.
