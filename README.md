@@ -39,7 +39,7 @@ Our offloading module is called `net.floodlightcontroller.mobilesdn`, and it has
 
 * `mobilesdn.Master.ofMonitorMaxNum`: how many monitoring turns are required for triggering offloading.
 
-* `mobilesdn.Master.apConfig`: this shall point to a apConfig file, which is required for traffic offloading. An example apConfig file is given in the `src/main/resources/ap.properties`. `ManagedIP` is the reachable IP address of the local agent running on the AP, `AUTH` is the authentication method and corresponding password (like "open", "wpa|your_password"). OFPort is port which this AP connects to the OF switch. `DownlinkBW` is the downstream bandwidth in Mbps.
+* `mobilesdn.Master.apConfig`: this shall point to an apConfig file, which is required for traffic offloading. An example apConfig file is given in the `src/main/resources/ap.properties`. `ManagedIP` is the reachable IP address of the local agent running on the AP, `AUTH` is the authentication method and corresponding password (like "open", "wpa|your_password"). OFPort is port which this AP connects to the OF switch. `DownlinkBW` is the downstream bandwidth in Mbps.
 
     ```
     # AP1

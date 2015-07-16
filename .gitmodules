@@ -1,9 +1,12 @@
 [submodule "SoftOffload-Master"]
 	path = SoftOffload-Master
 	url = https://github.com/TKTL-SDN/SoftOffload-Master.git
+	branch = eit-sdn
 [submodule "SoftOffload-Agent"]
 	path = SoftOffload-Agent
 	url = https://github.com/TKTL-SDN/SoftOffload-Agent.git
+	branch = eit-sdn
 [submodule "SoftOffload-Client"]
 	path = SoftOffload-Client
 	url = https://github.com/TKTL-SDN/SoftOffload-Client.git
+	branch = master
