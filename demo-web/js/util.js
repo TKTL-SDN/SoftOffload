@@ -37,7 +37,7 @@ $.getJSON(url, function(data) {
                 if (clts == '[') {
                     clts += v;
                 } else {
-                    clts += '<br>' + v;
+                    clts += ',<br>' + v;
                 }
             });
             if (clts == '[') {
