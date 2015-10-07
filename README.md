@@ -81,6 +81,10 @@ $: ant
 $: java -jar floodlight.jar
 ```
 
+**REST API**
+
+We also provide a few REST APIs for SoftOffload with Floodlight. For details, please visit this [instruction](https://github.com/TKTL-SDN/SoftOffload-Master) in the separated project!
+
 ### SoftOffload Agent
 
 #### Build the agent
