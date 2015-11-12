@@ -10,7 +10,6 @@ from mininet.topo import Topo
 from mininet.log import lg, info
 from mininet.cli import CLI
 from mininet.link import TCLink
-from mininet.topolib import TreeTopo
 
 class CampusTopo( Topo ):
     """two-level network topo for campus/middle-size orgnization
@@ -87,11 +86,6 @@ class CampusTopo( Topo ):
     def getInfo(self):
         return self.agents
 
-
-
-def TreeNet( depth=1, fanout=2, **kwargs):
-    topo = TreeTopo( depth, fanout )
-    return Mininet( topo, **kwargs )
 
 def distance( x, y ):
     return math.sqrt(math.pow(x[0] - y[0], 2) + math.pow(x[1] - y[1], 2))
