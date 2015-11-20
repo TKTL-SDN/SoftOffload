@@ -11,6 +11,8 @@ from mininet.log import lg, info
 from mininet.cli import CLI
 from mininet.link import TCLink
 
+import util
+
 class CampusTopo( Topo ):
     """two-level network topo for campus/middle-size orgnization
     multiple access switches -- core switch -- gateway -- internet
@@ -52,6 +54,7 @@ class CampusTopo( Topo ):
             # add access switch
             agent = {}
             switch = self.addSwitch( 's%s' % i )
+            agent['sw_name'] = 's%s' % i
             agent['name'] = 'agent%s' % i
             agent['ip'] = '171.0.0.%s' % i
             agent['ssid'] = 'sdntest%s' % i
@@ -69,10 +72,10 @@ class CampusTopo( Topo ):
                 client['name'] = host
                 x = randint(int(base[0] - coverage), int(base[0] + coverage))
                 y = randint(int(base[1] - coverage), int(base[1] + coverage))
-                dis = distance(base, (x, y))
+                dis = util.distance(base, (x, y))
                 tmpBw = self.accessBw
                 if dis > 6:
-                    tmpBw = int(math.pow(8 / dis, 2) * tmpBw)
+                    tmpBw = int(math.pow(6 / dis, 2) * tmpBw)
 
                 self.addLink( host, switch, bw=tmpBw )
                 client['bw'] = tmpBw
@@ -87,8 +90,6 @@ class CampusTopo( Topo ):
         return self.agents
 
 
-def distance( x, y ):
-    return math.sqrt(math.pow(x[0] - y[0], 2) + math.pow(x[1] - y[1], 2))
 
 def createAgentNet( k=5 ):
     net = Mininet( controller=Controller, switch=OVSSwitch )
@@ -111,28 +112,31 @@ def createAgentNet( k=5 ):
     sw.start( [ c ] )
     return net
 
-def main( path='info.json', num=5 ):
+def main( path='tmp.json', num=5 ):
     lg.setLogLevel( 'info' )
 
     topo = CampusTopo( k=num )
     info = topo.getInfo()
     
     net = Mininet(topo, link=TCLink)
-    for sw in info:
-        for clt in sw['clients']:
+
+    # add missing info to topo, and write it to a json file
+    for agent in info: 
+        sw = net[agent['sw_name']]
+        if len(sw.intfNames()) > 1:
+            intf = sw.nameToIntf[agent['sw_name'] + '-eth1']
+            agent['bssid'] = intf.MAC()
+
+        for clt in agent['clients']:
             host = net[clt['name']]
             clt['ip'] = host.IP()
             clt['mac'] = host.MAC()
-
     with open(path, 'w') as outfile:
         json.dump(info, outfile)
 
     net.start()
-
     
     agentNet = createAgentNet( num )
-    # agentNet.start()
-
     cmd = 'python /home/yfliu/Dev/sdn/mininet/custom/softoffload/udpserver.py'
     for agent in agentNet.hosts:
         agent.cmd( cmd + ' -i ' + agent.IP() + ' &')
@@ -152,6 +156,7 @@ def main( path='info.json', num=5 ):
         os.remove(path)
     except OSError:
         print "*** No json topo file found"
+    
 
 
 if __name__ == '__main__':
