@@ -4,7 +4,7 @@ import math
 import json, os
 from random import randint
 
-from mininet.node import Node, Controller, OVSSwitch
+from mininet.node import Node, Controller, OVSSwitch, RemoteController
 from mininet.net import Mininet
 from mininet.topo import Topo
 from mininet.log import lg, info
@@ -13,88 +13,10 @@ from mininet.link import TCLink
 
 import util
 
-class CampusTopo( Topo ):
-    """two-level network topo for campus/middle-size orgnization
-    multiple access switches -- core switch -- gateway -- internet
-    """
-
-    def __init__( self, *args, **params ):
-        self.agents = []
-        super(CampusTopo, self).__init__( *args, **params )
-
-    def build( self, k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10, 
-        **_opts):
-        """k: number of access switches
-           n: number of hosts per switch
-           accessBw: bandwidth between each host and access switch
-           coreBw: bandwidth between access switch and core switch
-           gtwBw: bandwidth between core switch to gateway/router
-        """
-
-        self.k = k
-        self.n = n
-        self.accessBw = accessBw
-        self.coreBw = coreBw
-        self.gtwBw = gtwBw
-
-        if n == 1:
-            genHostName = lambda i, j: 'h%s' % i
-        else:
-            genHostName = lambda i, j: 'h%ss%s' % ( j, i )
-
-        coreSwitch = self.addSwitch( 's0' )
-        gtw = self.addHost( 'gtw' )
-        self.addLink( gtw, coreSwitch, bw=self.gtwBw )
-
-        column = int(math.sqrt(k))
-        if column < 1:
-            return
-
-        for i in range( 1, k+1 ):
-            # add access switch
-            agent = {}
-            switch = self.addSwitch( 's%s' % i )
-            agent['sw_name'] = 's%s' % i
-            agent['name'] = 'agent%s' % i
-            agent['ip'] = '171.0.0.%s' % i
-            agent['ssid'] = 'sdntest%s' % i
-            # location, start from (0, 0)
-            row = (i - 1) / column
-            col = (i - 1) % column
-            base = (col * coverage * 1.5, row * coverage * 1.5)
-            agent['location'] = base
-            self.addLink( coreSwitch, switch, bw=self.coreBw )
-            # add hosts
-            clients = []
-            for j in range( 1, n+1 ):
-                client = {}
-                host = self.addHost( genHostName( i, j ) )
-                client['name'] = host
-                x = randint(int(base[0] - coverage), int(base[0] + coverage))
-                y = randint(int(base[1] - coverage), int(base[1] + coverage))
-                dis = util.distance(base, (x, y))
-                tmpBw = self.accessBw
-                if dis > 6:
-                    tmpBw = int(math.pow(6 / dis, 2) * tmpBw)
-
-                self.addLink( host, switch, bw=tmpBw )
-                client['bw'] = tmpBw
-                client['location'] = (x, y)
-                client['distantce'] = dis
-                clients.append(client)
-
-            agent['clients'] = clients
-            self.agents.append(agent)
-
-    def getInfo(self):
-        return self.agents
-
-
-
 def createAgentNet( k=5 ):
     net = Mininet( controller=Controller, switch=OVSSwitch )
 
-    print "*** Creating agents and an internal switch"
+    print "*** Creating agent network"
     sw = net.addSwitch( 's%s' % (k+1) )
     for i in range( 1, k+1 ):
         host = net.addHost( 'agent%s' % i, ip='171.0.0.%s/16' % i )
@@ -112,37 +34,114 @@ def createAgentNet( k=5 ):
     sw.start( [ c ] )
     return net
 
+def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10 ):
+    agents = []
+
+    if n == 1:
+        genHostName = lambda i, j: 'h%s' % i
+    else:
+        genHostName = lambda i, j: 'h%ss%s' % ( j, i )
+
+    print "*** Creating test network"
+    net = Mininet( controller=Controller, switch=OVSSwitch, link=TCLink )
+
+    print "*** Adding central controller"
+    c0 = RemoteController( 'c0', ip='127.0.0.1', port=6633 )
+
+    print "*** Adding switches and hosts"
+    coreSwitch = net.addSwitch( 's0' )
+    gtw = net.addHost( 'gtw' )
+    net.addLink( gtw, coreSwitch, bw=gtwBw )
+
+    column = int(math.sqrt(k))
+    if column < 1:
+        return
+
+    switches = []
+    for i in range( 1, k+1 ):
+        # add access switch
+        agent = {}
+        switch = net.addSwitch( 's%s' % i )
+        agent['sw_name'] = 's%s' % i
+        agent['name'] = 'agent%s' % i
+        agent['ip'] = '171.0.0.%s' % i
+        agent['ssid'] = 'sdntest%s' % i
+        # location, start from (0, 0)
+        row = (i - 1) / column
+        col = (i - 1) % column
+        base = (col * coverage * 1.5, row * coverage * 1.5)
+        agent['location'] = base
+        net.addLink( coreSwitch, switch, bw=coreBw )
+        # add hosts
+        clients = []
+        for j in range( 1, n+1 ):
+            client = {}
+            client[ 'name' ] = genHostName( i, j )
+            host = net.addHost( client[ 'name' ] )
+            x = randint(int(base[0] - coverage), int(base[0] + coverage))
+            y = randint(int(base[1] - coverage), int(base[1] + coverage))
+            dis = util.distance(base, (x, y))
+            tmpBw = accessBw
+            if dis > 6:
+                v = int(math.pow(6 / dis, 2) * tmpBw)
+                tmpBw = v if v > 0 else 0.5
+
+            net.addLink( host, switch, bw=tmpBw )
+            client['bw'] = tmpBw
+            client['location'] = (x, y)
+            client['distantce'] = dis
+            clients.append(client)
+
+        agent['clients'] = clients
+        agents.append(agent)
+        switches.append(switch)
+
+    print ""
+    print "*** Starting test network"
+    net.build()
+    coreSwitch.start( [ c0 ] )
+    for sw in switches:
+        sw.start( [] )
+    print ""
+
+    return (net, agents)
+
+def genFloodlightConfig():
+    pass
+
+
 def main( path='tmp.json', num=5 ):
     lg.setLogLevel( 'info' )
 
-    topo = CampusTopo( k=num )
-    info = topo.getInfo()
-    
-    net = Mininet(topo, link=TCLink)
+    #topo = CampusTopo( k=num )
+    #info = topo.getInfo()
+    #net = Mininet(topo, link=TCLink)
+
+    ( net, agents ) = createTestNet()
 
     # add missing info to topo, and write it to a json file
-    for agent in info: 
-        sw = net[agent['sw_name']]
+    for agent in agents: 
+        sw = net[ agent[ 'sw_name' ] ]
         if len(sw.intfNames()) > 1:
-            intf = sw.nameToIntf[agent['sw_name'] + '-eth1']
-            agent['bssid'] = intf.MAC()
+            intf = sw.nameToIntf[ agent[ 'sw_name' ] + '-eth1' ]
+            agent[ 'bssid' ] = intf.MAC()
 
-        for clt in agent['clients']:
-            host = net[clt['name']]
-            clt['ip'] = host.IP()
-            clt['mac'] = host.MAC()
-    with open(path, 'w') as outfile:
-        json.dump(info, outfile)
+        for clt in agent[ 'clients' ]:
+            host = net[ clt[ 'name' ] ]
+            clt[ 'ip' ] = host.IP()
+            clt[ 'mac' ] = host.MAC()
+    with open( path, 'w' ) as outfile:
+        json.dump( agents, outfile )
 
-    net.start()
-    
+    #net.start()
+
     agentNet = createAgentNet( num )
-    cmd = 'python /home/yfliu/Dev/sdn/mininet/custom/softoffload/udpserver.py'
+    cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
     for agent in agentNet.hosts:
         agent.cmd( cmd + ' -i ' + agent.IP() + ' &')
         # agent.startService( agent.IP() )
 
-    CLI( agentNet )
+    CLI( net )
 
     net.stop()
     

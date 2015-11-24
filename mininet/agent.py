@@ -46,7 +46,7 @@ class Agent:
         res = []
 
         for clt in self.clients:
-            res.append("client|" + clt['mac'] + "|" + clt['ip'] + "/n")
+            res.append("client|" + clt['mac'] + "|" + clt['ip'])
 
         return res
 
@@ -126,28 +126,28 @@ if __name__ == '__main__':
         while True:
             (data, addr) = s.recvfrom(1024)
             print "*** Message from %s: %s" % (addr, data.rstrip())
-            # s.sendto(data, addr)
+            res_addr = (addr[0], 26284)
             if data[0] == 'a':
                 cmd = data[1:3]
                 if cmd == 'ck':
                     mac = convert_byte_str_to_mac(data[4:11])
-                    s.sendto(agent.gen_clt_info(mac), addr)
+                    s.sendto(agent.gen_clt_info(mac), res_addr)
                 elif cmd == 'rp':
                     print "*** Report all client info"
                     msgs = agent.gen_all_clt_info()
                     for each in msgs:
-                        s.sendto(each, addr)
+                        s.sendto(each, res_addr)
             elif data[0] == 'c':
                 mac = convert_byte_str_to_mac(data[1:7])
                 if agent.has_client(mac):
                     fields = data[7:].split('|')
                     cmd = fields[0].lower()
                     if cmd == 'app':
-                        s.sendto('app|' + mac + '|download', addr)
+                        s.sendto('app|' + mac + '|download', res_addr)
                     elif cmd == 'scan':
                         scan_res = agent.gen_signal_levels(mac, info)
                         if scan_res != "":
-                            s.sendto(scan_res, addr)
+                            s.sendto(scan_res, res_addr)
 
 
     except (KeyboardInterrupt, SystemExit):
