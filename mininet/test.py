@@ -1,10 +1,14 @@
 #!/usr/bin/python
 
 import math
-import json, os
+import json
+import os
+import re
+import time
 from random import randint
+from subprocess import Popen, PIPE
 
-from mininet.node import Node, Controller, OVSSwitch, RemoteController
+from mininet.node import Node, Controller, OVSSwitch, OVSBridge, RemoteController
 from mininet.net import Mininet
 from mininet.topo import Topo
 from mininet.log import lg, info
@@ -14,7 +18,7 @@ from mininet.link import TCLink
 import util
 
 def createAgentNet( k=5 ):
-    net = Mininet( controller=Controller, switch=OVSSwitch )
+    net = Mininet( controller=Controller, switch=OVSBridge )
 
     print "*** Creating agent network"
     sw = net.addSwitch( 's%s' % (k+1) )
@@ -22,7 +26,7 @@ def createAgentNet( k=5 ):
         host = net.addHost( 'agent%s' % i, ip='171.0.0.%s/16' % i )
         net.addLink( sw, host )
 
-    c = net.addController('c1', controller=Controller, ip='127.0.0.1', port=6699)
+    # c = net.addController('c1', controller=Controller, ip='127.0.0.1', port=6699)
 
     root = Node( 'root', inNamespace=False )
     intf = net.addLink( root, sw ).intf1
@@ -30,11 +34,12 @@ def createAgentNet( k=5 ):
     # root.cmd( 'route add -net 171.0.0.0/16 dev ' + str( intf ) )
 
     net.build()
-    c.start()
-    sw.start( [ c ] )
+    # c.start()
+    sw.start( [] )
     return net
 
-def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10 ):
+def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10, 
+                    ctlIP='127.0.0.1' ):
     agents = []
 
     if n == 1:
@@ -46,7 +51,7 @@ def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10 ):
     net = Mininet( controller=Controller, switch=OVSSwitch, link=TCLink )
 
     print "*** Adding central controller"
-    c0 = RemoteController( 'c0', ip='127.0.0.1', port=6633 )
+    c0 = RemoteController( 'c0', ip=ctlIP, port=6633 )
 
     print "*** Adding switches and hosts"
     coreSwitch = net.addSwitch( 's0' )
@@ -61,7 +66,7 @@ def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10 ):
     for i in range( 1, k+1 ):
         # add access switch
         agent = {}
-        switch = net.addSwitch( 's%s' % i )
+        switch = net.addSwitch( 's%s' % i, cls=OVSBridge )
         agent['sw_name'] = 's%s' % i
         agent['name'] = 'agent%s' % i
         agent['ip'] = '171.0.0.%s' % i
@@ -106,18 +111,59 @@ def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10 ):
 
     return (net, agents)
 
-def genFloodlightConfig():
-    pass
+def getOVSPort( k=5, s='s0' ):
+    # run "ovs-dpctl show" to get port number
+    res = {}
+    p = Popen(["ovs-dpctl", "show"], stdout=PIPE)
+    output, err = p.communicate()
+    code = p.returncode
+    if code == 0:
+        for i in range( 1, k+2 ):
+            mstr = ".*port\s(\d+):\s%s-eth%d" % ( s, i )
+            m = re.search(mstr, output)
+            if m:
+                if i == 1:
+                    res[ 'gtw' ] = m.group(1)
+                else:
+                    res[ 'agent%d' % i ] = m.group(1)
+
+    return res
 
 
-def main( path='tmp.json', num=5 ):
+def genFloodlightConfig( agents, ofIP='127.0.0.1', bw=1000, apBw=100 ):
+    
+
+
+    # networks.properties
+    netCfg = open('networks.properties', 'w')
+    netCfg.write("OFSwitchIP %s\n" % ofIP)
+    netCfg.write("OutPort s0-eth1\n")  # fixed port to host 'gtw'
+    netCfg.write("BandWidth %s\n" % bw)
+    apStr = "AP"
+    for agent in agents:
+        apStr += " " + agent['ip']
+    netCfg.write("%s\n" % apStr)
+    netCfg.close()
+
+    # ap.properties
+    apCfg = open('ap.properties', 'w')
+    count = 0
+    for agent in agents:
+        count += 1
+        apCfg.write("# AP%s\n" % count)
+        apCfg.write("ManagedIP %s\n" % agent['ip'])
+        apCfg.write("SSID %s\n" % agent['ssid'])
+        apCfg.write("BSSID %s\n" % agent['bssid'])
+        apCfg.write("AUTH wpa|test")
+        apCfg.write("OFPort s0-eth%d\n" % (count + 1))
+        apCfg.write("DownlinkBW %s\n\n" % apBw)
+    apCfg.close()
+
+
+def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
     lg.setLogLevel( 'info' )
 
-    #topo = CampusTopo( k=num )
-    #info = topo.getInfo()
-    #net = Mininet(topo, link=TCLink)
-
-    ( net, agents ) = createTestNet()
+    ( net, agents ) = createTestNet(ctlIP=controllerIP)
 
     # add missing info to topo, and write it to a json file
     for agent in agents: 
@@ -133,13 +179,25 @@ def main( path='tmp.json', num=5 ):
     with open( path, 'w' ) as outfile:
         json.dump( agents, outfile )
 
-    #net.start()
+    # generate config for floodlight
+    print "*** Generating config files for floodlight"
+    genFloodlightConfig(agents)
+    time.sleep(60)
 
+    print "*** Starting UDP servers"
     agentNet = createAgentNet( num )
     cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
     for agent in agentNet.hosts:
-        agent.cmd( cmd + ' -i ' + agent.IP() + ' &')
-        # agent.startService( agent.IP() )
+        agent.cmd( cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &' )
+        print cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &'
+    
+    """
+    print "*** Generating test traffic"
+    dst = net[ 'gtw' ]
+    for host in net.hosts:
+        if host.name != 'gtw':
+            output = net.iperf( [ host, dst ], seconds=100 )
+    """
 
     CLI( net )
 
