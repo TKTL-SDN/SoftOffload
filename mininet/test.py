@@ -38,7 +38,7 @@ def createAgentNet( k=5 ):
     sw.start( [] )
     return net
 
-def createTestNet( k=5, n=5, accessBw=5, coreBw=100, gtwBw=1000, coverage=10, 
+def createTestNet( k=5, n=5, accessBw=10, coreBw=100, gtwBw=1000, coverage=10, 
                     ctlIP='127.0.0.1' ):
     agents = []
 
@@ -125,37 +125,37 @@ def getOVSPort( k=5, s='s0' ):
                 if i == 1:
                     res[ 'gtw' ] = m.group(1)
                 else:
-                    res[ 'agent%d' % i ] = m.group(1)
+                    res[ 'agent%d' % (i - 1) ] = m.group(1)
 
     return res
 
 
-def genFloodlightConfig( agents, ofIP='127.0.0.1', bw=1000, apBw=100 ):
-    
-
+def genFloodlightConfig( agents, ofIP='127.0.0.1', k=5, bw=1000, apBw=100 ):
+    port = getOVSPort( k )
+    #print port
 
     # networks.properties
-    netCfg = open('networks.properties', 'w')
-    netCfg.write("OFSwitchIP %s\n" % ofIP)
-    netCfg.write("OutPort s0-eth1\n")  # fixed port to host 'gtw'
-    netCfg.write("BandWidth %s\n" % bw)
+    netCfg = open( 'networks.properties', 'w' )
+    netCfg.write( "OFSwitchIP %s\n" % ofIP )
+    netCfg.write( "OutPort %s\n" % port[ 'gtw' ] )  # fixed port to host 'gtw'
+    netCfg.write( "BandWidth %s\n" % bw )
     apStr = "AP"
     for agent in agents:
-        apStr += " " + agent['ip']
-    netCfg.write("%s\n" % apStr)
+        apStr += " " + agent[ 'ip' ]
+    netCfg.write( "%s\n" % apStr )
     netCfg.close()
 
     # ap.properties
-    apCfg = open('ap.properties', 'w')
+    apCfg = open( 'ap.properties', 'w' )
     count = 0
     for agent in agents:
         count += 1
-        apCfg.write("# AP%s\n" % count)
-        apCfg.write("ManagedIP %s\n" % agent['ip'])
-        apCfg.write("SSID %s\n" % agent['ssid'])
-        apCfg.write("BSSID %s\n" % agent['bssid'])
-        apCfg.write("AUTH wpa|test")
-        apCfg.write("OFPort s0-eth%d\n" % (count + 1))
+        apCfg.write( "# AP%s\n" % count )
+        apCfg.write( "ManagedIP %s\n" % agent[ 'ip' ] )
+        apCfg.write( "SSID %s\n" % agent[ 'ssid' ] )
+        apCfg.write( "BSSID %s\n" % agent[ 'bssid' ] )
+        apCfg.write( "AUTH wpa|test\n" )
+        apCfg.write( "OFPort %s\n" % port[ "%s" % agent[ 'name' ] ])
         apCfg.write("DownlinkBW %s\n\n" % apBw)
     apCfg.close()
 
@@ -179,32 +179,40 @@ def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
     with open( path, 'w' ) as outfile:
         json.dump( agents, outfile )
 
-    # generate config for floodlight
-    print "*** Generating config files for floodlight"
-    genFloodlightConfig(agents)
-    time.sleep(60)
-
     print "*** Starting UDP servers"
     agentNet = createAgentNet( num )
     cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
+    pids = []
     for agent in agentNet.hosts:
-        agent.cmd( cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &' )
-        print cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &'
+        pid = agent.popen( cmd + ' -n %s -i %s >> log 2>&1 &' 
+                        % ( agent.name, agent.IP() ) )
+        pids.append( pid )
+        #print cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &'
+
+    # generate config for floodlight
+    print "*** Generating config files for floodlight"
+    genFloodlightConfig(agents)
     
-    """
+    # pause until user's input
+    raw_input("*** Pausing, Press Enter to continue...")
+
     print "*** Generating test traffic"
-    dst = net[ 'gtw' ]
+    filenode = net[ 'gtw' ]
+    iperfArgs = 'iperf -p 5001 '
     for host in net.hosts:
         if host.name != 'gtw':
-            output = net.iperf( [ host, dst ], seconds=100 )
-    """
+            host.cmd( iperfArgs + '-s &' )
+            filenode.cmd( iperfArgs + '-t 20 -c ' + host.IP() + ' &' )
 
     CLI( net )
 
+    for host in net.hosts:
+        if host.name != 'gtw':
+            host.cmd( 'killall -9 iperf' )
     net.stop()
     
-    for agent in agentNet.hosts:
-        agent.cmd( 'kill %' + cmd )
+    for pid in pids:
+        pid.terminate()
         # pass
     agentNet.stop()
     

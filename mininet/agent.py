@@ -4,6 +4,7 @@ import os, sys
 import socket
 import optparse
 import json
+import datetime
 
 import util
 
@@ -59,7 +60,7 @@ class Agent:
         if not self.has_client(mac):
             return ""
 
-        clt_pos = get_client_location(self, mac)
+        clt_pos = self.get_client_location(mac)
         res = "scan|%s|static" % mac
         for each in data:
             if each.has_key('bssid'):
@@ -74,7 +75,9 @@ class Agent:
                 elif dis > 10 and dis <= 13:
                     level = -int(40 + dis * 3)
                 else:
-                    level = -max(95, int(dis * 6 + 2))
+                    level = -int(dis * 6 + 2)
+                    if level < -95:
+                        continue
 
                 res += '|%s&%s&%s' % (ssid, bssid, level)
 
@@ -89,7 +92,9 @@ def convert_byte_str_to_mac(byte_str):
 
     return res
 
-        
+def get_current_time():
+    return str(datetime.datetime.now())
+
 
 if __name__ == '__main__':
     path = os.path.dirname(os.path.abspath(__file__))
@@ -103,37 +108,41 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args();
 
-    print "*** Reading topo info..."
+    log_tag = "[%s]" % options.name
+
+    print "*** [%s]%s Reading topo info..." % (get_current_time(), log_tag)
     with open(options.path + '/' + options.file) as data_file:
-        data = json.load(data_file)
+        topo = json.load(data_file)
 
     info = []
-    for each in data:
+    for each in topo:
         if each['name'] == options.name:
             info = each
             break
     else:
-        print "*** No topo info found, exiting"
+        print "*** [%s]%s No topo info found, exiting" % (get_current_time(), log_tag)
         sys.exit(-1)
 
     agent = Agent(data=info)
 
     try:
-        print "*** Starting UDP server..."
+        print "*** [%s]%s Starting UDP server..." % (get_current_time(), log_tag)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.bind((options.ip, options.port))
 
         while True:
             (data, addr) = s.recvfrom(1024)
-            print "*** Message from %s: %s" % (addr, data.rstrip())
             res_addr = (addr[0], 26284)
             if data[0] == 'a':
+                print ("*** [%s]%s Message from %s: %s" % (get_current_time(),
+                        log_tag, addr, data.rstrip()))
                 cmd = data[1:3]
                 if cmd == 'ck':
                     mac = convert_byte_str_to_mac(data[4:11])
                     s.sendto(agent.gen_clt_info(mac), res_addr)
                 elif cmd == 'rp':
-                    print "*** Report all client info"
+                    print ("*** [%s]%s Report all client info" % 
+                            (get_current_time(), log_tag))
                     msgs = agent.gen_all_clt_info()
                     for each in msgs:
                         s.sendto(each, res_addr)
@@ -142,11 +151,19 @@ if __name__ == '__main__':
                 if agent.has_client(mac):
                     fields = data[7:].split('|')
                     cmd = fields[0].lower()
+                    print ("*** [%s]%s Message from %s: c%s%s" 
+                        % (get_current_time(), log_tag, addr, mac, cmd))
                     if cmd == 'app':
+                        print ("*** [%s]%s Report app info" 
+                            % (get_current_time(), log_tag))
                         s.sendto('app|' + mac + '|download', res_addr)
                     elif cmd == 'scan':
-                        scan_res = agent.gen_signal_levels(mac, info)
+                        print ("*** [%s]%s Report signal info" 
+                            % (get_current_time(), log_tag))
+                        scan_res = agent.gen_signal_levels(mac, topo)
                         if scan_res != "":
+                            print ("*** [%s]%s Sent signal info to master" 
+                                % (get_current_time(), log_tag))
                             s.sendto(scan_res, res_addr)
 
 
