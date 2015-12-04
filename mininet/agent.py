@@ -105,12 +105,22 @@ if __name__ == '__main__':
     parser.add_option('-n', dest='name', type=str)
     parser.add_option('--path', dest='path', type=str, default=path)
     parser.add_option('-f', dest='file', type=str, default='tmp.json')
+    parser.add_option('-o', '--output', dest='output', default='-', 
+                    help='specifies the log output file. The default is stdout')
 
     (options, args) = parser.parse_args();
 
+    try:
+        if options.output and options.output != '-':
+            sys.stdout = open(options.path + '/' + options.output, 'a')
+    except Exception, e:
+        print "*** [%s] Fail to redirect output to %s" % (get_current_time(), 
+                options.output)
+        print e
+
     log_tag = "[%s]" % options.name
 
-    print "*** [%s]%s Reading topo info..." % (get_current_time(), log_tag)
+    print "\n*** [%s]%s Reading topo info..." % (get_current_time(), log_tag)
     with open(options.path + '/' + options.file) as data_file:
         topo = json.load(data_file)
 
@@ -132,17 +142,17 @@ if __name__ == '__main__':
 
         while True:
             (data, addr) = s.recvfrom(1024)
+            print "*** [%s]%s Message from %s: %s" % (get_current_time(),
+                        log_tag, addr, data.rstrip())
             res_addr = (addr[0], 26284)
             if data[0] == 'a':
-                print ("*** [%s]%s Message from %s: %s" % (get_current_time(),
-                        log_tag, addr, data.rstrip()))
                 cmd = data[1:3]
                 if cmd == 'ck':
                     mac = convert_byte_str_to_mac(data[4:11])
                     s.sendto(agent.gen_clt_info(mac), res_addr)
                 elif cmd == 'rp':
-                    print ("*** [%s]%s Report all client info" % 
-                            (get_current_time(), log_tag))
+                    print "*** [%s]%s Report all client info" % (
+                            get_current_time(), log_tag)
                     msgs = agent.gen_all_clt_info()
                     for each in msgs:
                         s.sendto(each, res_addr)
@@ -151,21 +161,22 @@ if __name__ == '__main__':
                 if agent.has_client(mac):
                     fields = data[7:].split('|')
                     cmd = fields[0].lower()
-                    print ("*** [%s]%s Message from %s: c%s%s" 
-                        % (get_current_time(), log_tag, addr, mac, cmd))
+                    print "*** [%s]%s Interprte message: c|%s|%s" % (
+                                get_current_time(), log_tag, mac, cmd)
                     if cmd == 'app':
-                        print ("*** [%s]%s Report app info" 
-                            % (get_current_time(), log_tag))
+                        print "*** [%s]%s Report app info" % (
+                                get_current_time(), log_tag)
                         s.sendto('app|' + mac + '|download', res_addr)
                     elif cmd == 'scan':
-                        print ("*** [%s]%s Report signal info" 
-                            % (get_current_time(), log_tag))
+                        print "*** [%s]%s Report signal info" % (
+                                get_current_time(), log_tag)
                         scan_res = agent.gen_signal_levels(mac, topo)
                         if scan_res != "":
-                            print ("*** [%s]%s Sent signal info to master" 
-                                % (get_current_time(), log_tag))
+                            print "*** [%s]%s Sent signal info to master" % (
+                                    get_current_time(), log_tag)
                             s.sendto(scan_res, res_addr)
 
+            sys.stdout.flush()
 
     except (KeyboardInterrupt, SystemExit):
         print "\n*** Interrupt signal caught, UDP server exited"

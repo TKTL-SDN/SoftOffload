@@ -17,7 +17,7 @@ from mininet.link import TCLink
 
 import util
 
-def createAgentNet( k=5 ):
+def createAgentNet( k ):
     net = Mininet( controller=Controller, switch=OVSBridge )
 
     print "*** Creating agent network"
@@ -38,7 +38,7 @@ def createAgentNet( k=5 ):
     sw.start( [] )
     return net
 
-def createTestNet( k=5, n=5, accessBw=10, coreBw=100, gtwBw=1000, coverage=10, 
+def createTestNet( k, n, accessBw=10, coreBw=100, gtwBw=1000, coverage=10, 
                     ctlIP='127.0.0.1' ):
     agents = []
 
@@ -111,7 +111,7 @@ def createTestNet( k=5, n=5, accessBw=10, coreBw=100, gtwBw=1000, coverage=10,
 
     return (net, agents)
 
-def getOVSPort( k=5, s='s0' ):
+def getOVSPort( k, s='s0' ):
     # run "ovs-dpctl show" to get port number
     res = {}
     p = Popen(["ovs-dpctl", "show"], stdout=PIPE)
@@ -130,7 +130,7 @@ def getOVSPort( k=5, s='s0' ):
     return res
 
 
-def genFloodlightConfig( agents, ofIP='127.0.0.1', k=5, bw=1000, apBw=100 ):
+def genFloodlightConfig( agents, k, ofIP='127.0.0.1', bw=1000, apBw=100 ):
     port = getOVSPort( k )
     #print port
 
@@ -160,10 +160,10 @@ def genFloodlightConfig( agents, ofIP='127.0.0.1', k=5, bw=1000, apBw=100 ):
     apCfg.close()
 
 
-def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
+def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
     lg.setLogLevel( 'info' )
 
-    ( net, agents ) = createTestNet(ctlIP=controllerIP)
+    ( net, agents ) = createTestNet( k, n, ctlIP=controllerIP )
 
     # add missing info to topo, and write it to a json file
     for agent in agents: 
@@ -180,18 +180,18 @@ def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
         json.dump( agents, outfile )
 
     print "*** Starting UDP servers"
-    agentNet = createAgentNet( num )
+    agentNet = createAgentNet( k )
     cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
     pids = []
     for agent in agentNet.hosts:
-        pid = agent.popen( cmd + ' -n %s -i %s >> log 2>&1 &' 
-                        % ( agent.name, agent.IP() ) )
+        pid = agent.popen( cmd + ' -n %s -i %s -o log &' % ( 
+                            agent.name, agent.IP() ) )
         pids.append( pid )
         #print cmd + ' -n ' + agent.name + ' -i ' + agent.IP() + ' &'
 
     # generate config for floodlight
     print "*** Generating config files for floodlight"
-    genFloodlightConfig(agents)
+    genFloodlightConfig( agents, k )
     
     # pause until user's input
     raw_input("*** Pausing, Press Enter to continue...")
@@ -202,7 +202,7 @@ def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
     for host in net.hosts:
         if host.name != 'gtw':
             host.cmd( iperfArgs + '-s &' )
-            filenode.cmd( iperfArgs + '-t 20 -c ' + host.IP() + ' &' )
+            filenode.cmd( iperfArgs + '-t 15 -c ' + host.IP() + ' &' )
 
     CLI( net )
 
@@ -225,4 +225,4 @@ def main( path='tmp.json', num=5, controllerIP='127.0.0.1' ):
 
 
 if __name__ == '__main__':
-    main()
+    main( k=10, n=10 )
