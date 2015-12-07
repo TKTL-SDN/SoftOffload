@@ -136,5 +136,5 @@ A more detailed instruction can be found [here](https://github.com/TKTL-SDN/Soft
 
 ## References
 
-Yanhe Liu. [An SDN Platform for Traffic Offloading](https://helda.helsinki.fi/handle/10138/154632). Master's thesis. Univeristy of Helsinki, 2015.
+Yanhe Liu. [An SDN Platform for Traffic Offloading](https://helda.helsinki.fi/bitstream/handle/10138/154632/An%20SDN%20Platform%20for%20Traffic%20Offloading.pdf?sequence=3). Master's thesis. Univeristy of Helsinki, 2015.
 
