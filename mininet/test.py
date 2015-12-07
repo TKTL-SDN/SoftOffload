@@ -17,14 +17,17 @@ from mininet.link import TCLink
 
 import util
 
-def createAgentNet( k ):
+def createAgentNet( k, routeIP ):
     net = Mininet( controller=Controller, switch=OVSBridge )
 
     print "*** Creating agent network"
     sw = net.addSwitch( 's%s' % (k+1) )
     for i in range( 1, k+1 ):
         host = net.addHost( 'agent%s' % i, ip='171.0.0.%s/16' % i )
-        net.addLink( sw, host )
+        intf = net.addLink( sw, host ).intf2
+        if routeIP:
+            # host.setHostRoute( routeIP, intf ) # this api does not work!!!
+            host.cmd( 'ip route add %s dev %s' % ( routeIP, str( intf ) ) )
 
     # c = net.addController('c1', controller=Controller, ip='127.0.0.1', port=6699)
 
@@ -130,7 +133,7 @@ def getOVSPort( k, s='s0' ):
     return res
 
 
-def genFloodlightConfig( agents, k, ofIP='127.0.0.1', bw=1000, apBw=100 ):
+def genFloodlightConfig( agents, k, ofIP, bw=1000, apBw=100 ):
     port = getOVSPort( k )
     #print port
 
@@ -160,7 +163,9 @@ def genFloodlightConfig( agents, k, ofIP='127.0.0.1', bw=1000, apBw=100 ):
     apCfg.close()
 
 
-def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
+def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1', 
+        ofIP='127.0.0.1', routeIP=None ):
+    
     lg.setLogLevel( 'info' )
 
     ( net, agents ) = createTestNet( k, n, ctlIP=controllerIP )
@@ -180,7 +185,7 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
         json.dump( agents, outfile )
 
     print "*** Starting UDP servers"
-    agentNet = createAgentNet( k )
+    agentNet = createAgentNet( k, routeIP )
     cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
     pids = []
     for agent in agentNet.hosts:
@@ -191,7 +196,7 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
 
     # generate config for floodlight
     print "*** Generating config files for floodlight"
-    genFloodlightConfig( agents, k )
+    genFloodlightConfig( agents, k, ofIP )
     
     # pause until user's input
     raw_input("*** Pausing, Press Enter to continue...")
@@ -203,8 +208,19 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
         if host.name != 'gtw':
             host.cmd( iperfArgs + '-s &' )
             filenode.cmd( iperfArgs + '-t 15 -c ' + host.IP() + ' &' )
+    # repeat
+    while True:
+        time.sleep(15)
+        choice = raw_input("*** Do you want to repeat test ([y]/n)? ")
+        if choice.lower() != 'y':
+            break
 
-    CLI( net )
+        for host in net.hosts:
+            if host.name != 'gtw':
+                filenode.cmd( iperfArgs + '-t 15 -c ' + host.IP() + ' &' )
+
+
+    CLI( agentNet )
 
     for host in net.hosts:
         if host.name != 'gtw':
@@ -225,4 +241,5 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1' ):
 
 
 if __name__ == '__main__':
-    main( k=10, n=10 )
+    main( k=10, n=10, controllerIP='192.168.0.10', ofIP='192.168.0.30', 
+          routeIP='192.168.0.10' )
