@@ -25,7 +25,7 @@ def createAgentNet( k, routeIP ):
     for i in range( 1, k+1 ):
         host = net.addHost( 'agent%s' % i, ip='171.0.0.%s/16' % i )
         intf = net.addLink( sw, host ).intf2
-        if routeIP:
+        if routeIP != '127.0.0.1':
             # host.setHostRoute( routeIP, intf ) # this api does not work!!!
             host.cmd( 'ip route add %s dev %s' % ( routeIP, str( intf ) ) )
 
@@ -164,8 +164,18 @@ def genFloodlightConfig( agents, k, ofIP, bw=1000, apBw=100 ):
 
 
 def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1', 
-        ofIP='127.0.0.1', routeIP=None ):
-    
+        ofIP='127.0.0.1' ):
+    """main func for simulating agents, clients and tcp traffic
+       k:   agent/ap number
+       n:   client number on each agent. 
+            Now each agent must have the same number of clients
+       controllerIP: floodlight controller ip. 127.0.0.1 means it runs locally 
+            on the same machine
+       ofIP: ovs control ip exposed to the floodlight controller. The ovs switch
+            runs on this machine with mininet, so 127.0.0.1 means the floodlight
+            controller runs on the same machine
+    """
+
     lg.setLogLevel( 'info' )
 
     ( net, agents ) = createTestNet( k, n, ctlIP=controllerIP )
@@ -185,7 +195,7 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1',
         json.dump( agents, outfile )
 
     print "*** Starting UDP servers"
-    agentNet = createAgentNet( k, routeIP )
+    agentNet = createAgentNet( k, routeIP=controllerIP )
     cmd = 'python %s/agent.py' % os.path.dirname(os.path.abspath(__file__))
     pids = []
     for agent in agentNet.hosts:
@@ -241,5 +251,5 @@ def main( path='tmp.json', k=5, n=5, controllerIP='127.0.0.1',
 
 
 if __name__ == '__main__':
-    main( k=10, n=10, controllerIP='192.168.0.10', ofIP='192.168.0.30', 
-          routeIP='192.168.0.10' )
+
+    main( k=10, n=10, controllerIP='192.168.0.10', ofIP='192.168.0.30' )
