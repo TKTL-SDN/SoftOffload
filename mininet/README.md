@@ -22,8 +22,10 @@ In this file we illustrate how to use mininet and our test.py to simulate softof
 
 Here we show setting-up steps we are using for a remote controller, the topo looks like this:
 
-  mininet (192.168.0.30/24) <---> floodlight (192.168.0.10/24)
-
+    192.168.0.30/24    192.168.0.10/24
+              eth0     eth2
+      mininet <-----------> floodlight
+  
 
 * now we are using 171.0.0.0/16 for simulating agents (you could edit it anyway), so we need to first edit routing tables on the floodlight controller
 
