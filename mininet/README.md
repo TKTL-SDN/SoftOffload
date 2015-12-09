@@ -1,4 +1,4 @@
-In this file we illustrate how to use mininet and our test.py to simulate softoffload agents and clients
+Here we illustrate how to use mininet and our test.py to simulate softoffload agents and clients
 
 ## Requirements
 
